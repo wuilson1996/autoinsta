@@ -523,7 +523,7 @@ class ManageInsta:
         #if platform.system() == "Windows":
         return self._driver_chrome()
         #else:
-        #return self._driver_firefox()
+            #return self._driver_firefox()
 
     def _driver_firefox(self):
         options = Options()
@@ -674,32 +674,34 @@ class ManageInsta:
                         logging.info("El código no es válido. Puedes solicitar uno nuevo.")
                         _driver.find_element_by_xpath("//input[@name='email_confirmation_code']").clear()
                         self.resend_code(_driver)
+                        time.sleep(3)
+                        re_captcha = ReCapchat(_driver)
+                        re_captcha.run()
                     else:
+                        print("[+] Check code success...")
+                        time.sleep(5)
+                        if "The IP address you are using has been flagged as an open proxy. If you believe this to be incorrect, please visit" in str(_driver.page_source):
+                            status = False
+                        else:
+                            status = True
                         break
                 else:
                     if time.time() - start_time > time_out_resend:
                         self.resend_code(_driver)
+                        time.sleep(3)
+                        re_captcha = ReCapchat(_driver)
+                        re_captcha.run()
                         time_out_resend += time_out_resend
                     status = False
-            time.sleep(15)
-            try:
-                if "Activar notificaciones" in str(_driver.page_source) or "Turn on Notifications" in str(_driver.page_source):
-                    for b in _driver.find_elements_by_tag_name("button"):
-                        if "Ahora no" == str(b.text).strip() or "Not Now" in str(b.text).strip() or "Not now" in str(b.text).strip():
-                            b.click()
-                            break
-            except Exception as e:
-                logging.info("Error Activa notifications: "+str(e))
-            
+            time.sleep(10)
+            self.notification(_driver)
             time.sleep(5)
-            if "hemos suspendido tu cuenta permanentemente." in _driver.page_source or "Intento de inicio de sesión sospechoso" in _driver.page_source or "We Detected An Unusual Login Attempt" in _driver.page_source or "Suspicious Login Attempt" in _driver.page_source or "We suspended your account" in _driver.page_source or "We suspect automated behavior on your account" in _driver.page_source:
-                block = True
-                status = True
-                logging.info(f"Account login problem block: {self._email}")
+            block = self.check_suspend(_driver)
         except Exception as e:
             logging.info("Error: "+str(e))
             status = False
             block = False
+        print(status, block)
         return status, block
     
     def resend_code(self, _driver):
