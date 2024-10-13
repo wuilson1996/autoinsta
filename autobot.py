@@ -40,6 +40,7 @@ import argparse
 import openai
 _logging = logging.basicConfig(filename="logger.log", level=logging.INFO)
 
+openai.api_key = ''
 
 def chat_with_gpt(prompt):
     response = openai.ChatCompletion.create(
