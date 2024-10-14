@@ -296,6 +296,25 @@ class WebActions:
     def __init__(self, driver):
         self.driver = driver
 
+    def save_session(self, _driver):
+        status = False
+        logging.info(f"Check button save session")
+        if "¿Guardar tu información de inicio de sesión?" in str(_driver.page_source) or "Save your login info?" in str(_driver.page_source):
+            status = True
+            for b in _driver.find_elements_by_xpath("//div[@role='button']"):
+                if "Ahora no" == str(b.text).strip() or "Not now" == str(b.text).strip():
+                    b.click()
+        return status
+
+    def notification(self, _driver):
+        logging.info(f"Check button notifications")
+        if "Activar notificaciones" in str(_driver.page_source) or "Turn on Notifications" in str(_driver.page_source):
+            for b in _driver.find_elements_by_tag_name("button"):
+                #print(b.text)
+                if "Ahora no" == str(b.text).strip() or "Not Now" in str(b.text).strip() or "Not now" in str(b.text).strip():
+                    b.click()
+                    break
+
     def perform_button_click_and_input(self, max_timeout=120):
         print("Check buton Send message")
         start_time = time.time()  # Captura el tiempo de inicio
@@ -368,6 +387,11 @@ class WebActions:
         status = False
         while True:
             try:
+                self.save_session(self.driver)
+                self.notification(self.driver)
+                if "No account found." in str(self.driver.page_source):
+                    print("Check click item. No account found.")
+                    break
                 # Busca todos los botones con el rol "button"
                 buttons = self.driver.find_elements_by_xpath('//div[@role="button"]')
                 #print(buttons)
@@ -384,9 +408,6 @@ class WebActions:
                 if status:
                     break
 
-                if "No account found." in str(self.driver.page_source):
-                    print("Check click item. No account found.")
-                    break
                 # Verifica si ha pasado el tiempo máximo permitido
                 elapsed_time = time.time() - start_time
                 if elapsed_time >= max_timeout:
@@ -582,11 +603,7 @@ class ManageInsta:
             _driver.implicitly_wait(15)
             #_driver.maximize_window()
             time.sleep(4)
-            for b in _driver.find_elements_by_tag_name("button"):
-                if "Permitir todas las cookies" in b.text:
-                    b.click()
-                    time.sleep(5)
-                    break
+            self.check_cookies(_driver)
             for a in _driver.find_elements_by_tag_name("a"):
                 #logging.info(a.text)
                 if "Regístrate" == str(a.text).strip() or "Sign up" in str(a.text).strip():
@@ -595,11 +612,11 @@ class ManageInsta:
             sleep(2)
             _driver.find_element_by_xpath("//input[@name='emailOrPhone']").send_keys(self._email)
             sleep(1)
+            _driver.find_element_by_xpath("//input[@name='password']").send_keys(self._password)
+            sleep(1)
             _driver.find_element_by_xpath("//input[@name='fullName']").send_keys(self._name)
             sleep(1)
             _driver.find_element_by_xpath("//input[@name='username']").send_keys(self._username)
-            sleep(1)
-            _driver.find_element_by_xpath("//input[@name='password']").send_keys(self._password)
             sleep(1)
             #screen_width = _driver.execute_script("return window.screen.availWidth;")
             #screen_height = _driver.execute_script("return window.screen.availHeight;")
@@ -610,7 +627,7 @@ class ManageInsta:
             #_driver.set_window_position(0, 0)
 
             for b in _driver.find_elements_by_xpath("//button[@type='submit']"):
-                if "Registrarte" == str(b.text).strip() or "Siguiente" == str(b.text).strip() or "Sign up" in str(b.text).strip():
+                if "Registrarte" == str(b.text).strip() or "Siguiente" == str(b.text).strip() or "Sign up" in str(b.text).strip() or "Next" in str(b.text).strip():
                     logging.info("Click button Registrarte")
                     b.click()
                     break
@@ -717,17 +734,20 @@ class ManageInsta:
                 logging.info("[+] Resend code Success...")
                 b.click()
                 break
+    
+    def check_cookies(self, _driver):
+        for b in _driver.find_elements_by_tag_name("button"):
+            if "Permitir todas las cookies" in b.text or "Allow all cookies" in b.text:
+                b.click()
+                time.sleep(5)
+                break
 
     def sign_in(self, _driver):
         _driver.get(self.url)
         _driver.implicitly_wait(15)
         _driver.maximize_window()
         time.sleep(5)
-        for b in _driver.find_elements_by_tag_name("button"):
-            if "Permitir todas las cookies" in b.text:
-                b.click()
-                time.sleep(5)
-                break
+        self.check_cookies(_driver)
         _driver.find_element_by_xpath("//input[@name='username']").send_keys(self._email)
         _driver.find_element_by_xpath("//input[@name='password']").send_keys(self._password)
         time.sleep(1)
@@ -745,12 +765,15 @@ class ManageInsta:
                 block = self.check_suspend(_driver)
         else:
             block = False
-            time.sleep(4)
-            self.notification(_driver)
-            time.sleep(2)
-            self.config_account(_driver)
-            time.sleep(2)
-            self.config_account(_driver)
+            try:
+                time.sleep(4)
+                self.notification(_driver)
+                time.sleep(2)
+                self.config_account(_driver)
+                time.sleep(2)
+                self.config_account(_driver)
+            except Exception as e:
+                logging.info("Error 756: "+str(e))
         return status, block
     
     def config_account(self, _driver):
