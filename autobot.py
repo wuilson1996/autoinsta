@@ -64,11 +64,12 @@ class ReCapchat:
     def run(self, name_file = "audio"):
         soup = BeautifulSoup(self._driver.page_source, "html.parser")
         iframe = soup.find("iframe", {"id": "recaptcha-iframe"})
-        logging.info(iframe)
+        #logging.info(iframe)
         #for i in iframe:
         #    print(i.get("title"))
         result = False
         if iframe is not None:
+            logging.info("[-] ReCapchat in current process, solver in progress")
             try:
                 WebDriverWait(self._driver, 20).until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[@id='recaptcha-iframe']")))
                 WebDriverWait(self._driver, 20).until(EC.frame_to_be_available_and_switch_to_it((By.XPATH, "//iframe[@title='reCAPTCHA']")))
@@ -523,7 +524,7 @@ class ManageInsta:
         #if platform.system() == "Windows":
         return self._driver_chrome()
         #else:
-            #return self._driver_firefox()
+        #return self._driver_firefox()
 
     def _driver_firefox(self):
         options = Options()
@@ -664,27 +665,32 @@ class ManageInsta:
                 if confirmation_code != None:
                     logging.info(confirmation_code)
                     _driver.find_element_by_xpath("//input[@name='email_confirmation_code']").send_keys(confirmation_code)
-
-                    for b in _driver.find_elements_by_xpath("//div[@role='button']"):
-                        if "Siguiente" == str(b.text).strip() or "Next" == str(b.text).strip():
-                            b.click()
-                            break
-                    time.sleep(1)
-                    if "El código no es válido. Puedes solicitar uno nuevo." in str(_driver.page_source) or "That code isn't valid. You can request a new one." in str(_driver.page_source):
-                        logging.info("El código no es válido. Puedes solicitar uno nuevo.")
-                        _driver.find_element_by_xpath("//input[@name='email_confirmation_code']").clear()
-                        self.resend_code(_driver)
-                        time.sleep(3)
-                        re_captcha = ReCapchat(_driver)
-                        re_captcha.run()
-                    else:
-                        print("[+] Check code success...")
-                        time.sleep(5)
-                        if "The IP address you are using has been flagged as an open proxy. If you believe this to be incorrect, please visit" in str(_driver.page_source):
-                            status = False
+                    try:
+                        for b in _driver.find_elements_by_xpath("//div[@role='button']"):
+                            if "Siguiente" == str(b.text).strip() or "Next" == str(b.text).strip():
+                                b.click()
+                                break
+                    except Exception as ebtn:
+                        logging.info("Error buttonclick: "+str(ebtn))
+                    try:
+                        time.sleep(1)
+                        if "El código no es válido. Puedes solicitar uno nuevo." in str(_driver.page_source) or "That code isn't valid. You can request a new one." in str(_driver.page_source):
+                            logging.info("El código no es válido. Puedes solicitar uno nuevo.")
+                            _driver.find_element_by_xpath("//input[@name='email_confirmation_code']").clear()
+                            self.resend_code(_driver)
+                            time.sleep(3)
+                            re_captcha = ReCapchat(_driver)
+                            re_captcha.run()
                         else:
-                            status = True
-                        break
+                            print("[+] Check code success...")
+                            time.sleep(5)
+                            if "The IP address you are using has been flagged as an open proxy. If you believe this to be incorrect, please visit" in str(_driver.page_source):
+                                status = False
+                            else:
+                                status = True
+                            break
+                    except Exception as ebtn2:
+                        logging.info("Error Check code confirmation: "+str(ebtn2))
                 else:
                     if time.time() - start_time > time_out_resend:
                         self.resend_code(_driver)
@@ -729,10 +735,10 @@ class ManageInsta:
             if "Entrar" == str(b.text).strip() or "Log in" == str(b.text).strip():
                 b.click()
                 break
-        time.sleep(5)
+        time.sleep(10)
         status = self.save_session(_driver)
         if not status:
-            time.sleep(5)
+            time.sleep(10)
             block = self.check_session(_driver)
             if not block:
                 time.sleep(2)
