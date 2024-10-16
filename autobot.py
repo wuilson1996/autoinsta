@@ -37,24 +37,17 @@ import re
 import time
 from time import sleep
 import argparse
-import openai
+
 _logging = logging.basicConfig(filename="logger.log", level=logging.INFO)
 
-openai.api_key = ''
 
 def chat_with_gpt(prompt):
-    response = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",  # Cambiado a gpt-3.5-turbo para la versión gratuita
-      messages=[{"role": "user", "content": prompt}],
-      max_tokens=100,
-      n=1,
-      stop=None,
-      temperature=0.7
-    )
-
-    # Obtén la respuesta
-    message = response["choices"][0]["message"]["content"]
-    return message
+    url = "http://127.0.0.1:8000/api/connetToAI/"
+    payload = {'text': prompt}
+    files=[]
+    headers = {}
+    response = requests.request("POST", url, headers=headers, data=payload, files=files)
+    return json.loads(response.text)
 
 class ReCapchat:
     def __init__(self, driver=None, language="en-US") -> None:
@@ -163,15 +156,18 @@ class ServiceEmail:
                             soup = BeautifulSoup(body, 'html.parser')
                             prompt = str(soup) + ". Dame el código de verificación en JSON. con la key 'code' y en otra key 'check' true o false si el código es de 'instagram'."
                             resp = chat_with_gpt(prompt)
-                            logging.info("----------------------------------------")
-                            logging.info("Respuesta de GPT:"+ resp)
-                            logging.info("----------------------------------------")
-                            resp = json.loads(resp)
-                            if resp["check"]:
-                                confirmation_code = resp["code"]
-                                logging.info(f"Código de confirmación: {confirmation_code}")
-                                status_received = True
-                                break
+                            if resp["code"] == 200:
+                                logging.info("----------------------------------------")
+                                logging.info("Respuesta de GPT:"+ resp)
+                                logging.info("----------------------------------------")
+                                resp = json.loads(resp["data"])
+                                if resp["check"]:
+                                    confirmation_code = resp["code"]
+                                    logging.info(f"Código de confirmación: {confirmation_code}")
+                                    status_received = True
+                                    break
+                            else:
+                                logging.info(f"Error in consult code with api: {resp}")
                         except Exception as e:
                             logging.info("Error procesando el cuerpo: " + str(e))
 
@@ -1235,16 +1231,14 @@ if __name__ == "__main__":
     # code = service_email.received(_email.split("@")[1])
     # print(code)
     
-    parser = argparse.ArgumentParser(description='Autobot Instagram')
-    parser.add_argument('machine', type=str, help='Name machine')
-    parser.add_argument('url', type=str, help='url botMaster')
+    #parser = argparse.ArgumentParser(description='Autobot Instagram')
+    #parser.add_argument('machine', type=str, help='Name machine')
+    #parser.add_argument('url', type=str, help='url botMaster')
     #Parsear los argumentos
-    args = parser.parse_args()
-    asyncio.run(received(args.machine, args.url))
+    #args = parser.parse_args()
+    #asyncio.run(received(args.machine, args.url))
 
     # Ejemplo de uso
-    #prompt = """
-    #<div class="rcmBody" id="message-htmlpart1" style="margin: 0; padding: 0; background-color: #ffffff" dir="ltr"><table border="0" cellspacing="0" cellpadding="0" align="center" id="v1email_table" style="border-collapse: collapse"><tbody><tr><td id="v1email_content" style="font-family: Helvetica Neue,Helvetica,Lucida Grande,tahoma,verdana,arial,sans-serif; background: #ffffff"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td height="20" style="line-height: 20px" colspan="3">&nbsp;</td></tr><tr><td height="1" colspan="3" style="line-height: 1px"></td></tr><tr><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; text-align: center; width: 100%"><tbody><tr><td width="15px" style="width: 15px"></td><td style="line-height: 0px; max-width: 600px; padding: 0 0 15px 0"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td style="width: 100%; text-align: left; height: 33px"><img height="33" src="program/resources/blocked.gif" style="border: 0"></td></tr></tbody></table></td><td width="15px" style="width: 15px"></td></tr></tbody></table></td></tr><tr><td><table border="0" width="430" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto"><tbody><tr><td><table border="0" width="430px" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 430px"><tbody><tr><td width="15" style="display: block; width: 15px">&nbsp;&nbsp;&nbsp;</td></tr><tr><td width="12" style="display: block; width: 12px">&nbsp;&nbsp;&nbsp;</td><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td></td><td style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px"><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Hola:</p><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Alguien intentó registrarse en una cuenta de Instagram con albertopineda202401@mivisaya.com. Si fuiste tú, ingresa este código de registro en la app:</p></td></tr></tbody></table></td></tr><tr><td></td><td style="padding: 10px; color: #565a5c; font-size: 32px; font-weight: 500; text-align: center; padding-bottom: 25px">568012</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table><table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 100%; max-width: 600px"><tbody><tr><td height="4" style="line-height: 4px" colspan="3">&nbsp;</td></tr><tr><td width="15px" style="width: 15px"></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td style="text-align: center"><div style="padding-top: 10px; display: flex"><div style="margin: auto"><img class="v1img" src="program/resources/blocked.gif" height="26" width="52"></div><br></div><div style="height: 10px"></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">© Instagram. Meta Platforms, Inc., 1601 Willow Road, Menlo Park, CA 94025<br></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">Este mensaje se envió a <a style="color: #abadae; text-decoration: underline">albertopineda202401@mivisaya.com</a>.<br></div></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td width="15px" style="width: 15px"></td></tr><tr><td height="32" style="line-height: 32px" colspan="3">&nbsp;</td></tr></tbody></table>&nbsp;<span><img src="program/resources/blocked.gif" style="border: 0; width: 1px; height: 1px"></span></div>
-    #    dame el codigo de verificacion en json. con la key 'code' y en otra key check true o false si el codigo es de instagram."""
-    #respuesta = chat_with_gpt(prompt)
-    #print(json.loads(respuesta))
+    prompt = '<div class="rcmBody" id="message-htmlpart1" style="margin: 0; padding: 0; background-color: #ffffff" dir="ltr"><table border="0" cellspacing="0" cellpadding="0" align="center" id="v1email_table" style="border-collapse: collapse"><tbody><tr><td id="v1email_content" style="font-family: Helvetica Neue,Helvetica,Lucida Grande,tahoma,verdana,arial,sans-serif background: #ffffff"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td height="20" style="line-height: 20px" colspan="3"> nbsp;</td></tr><tr><td height="1" colspan="3" style="line-height: 1px"></td></tr><tr><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse text-align: center; width: 100%"><tbody><tr><td width="15px" style="width: 15px"></td><td style="line-height: 0px; max-width: 600px; padding: 0 0 15px 0"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td style="width: 100%; text-align: left; height: 33px"><img height="33" src="program/resources/blocked.gif" style="border: 0"></td></tr></tbody></table></td><td width="15px" style="width: 15px"></td></tr></tbody></table></td></tr><tr><td><table border="0" width="430" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto"><tbody><tr><td><table border="0" width="430px" cellspacing="0" cellpadding="0" style="border-collapse: collapse margin: 0 auto 0 auto; width: 430px"><tbody><tr><td width="15" style="display: block; width: 15px">&nbsp;&nbsp;&nbsp;</td></tr><tr><td width="12" style="display: block; width: 12px"> nbsp;&nbsp;&nbsp;</td><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td></td><td style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px"><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Hola:</p><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Alguien intentó registrarse en una cuenta de Instagram con albertopineda202401@mivisaya.com. Si fuiste tú, ingresa este código de registro en la app:</p></td></tr></tbody></table></td></tr><tr><td>< td><td style="padding: 10px; color: #565a5c; font-size: 32px; font-weight: 500; text-align: center; padding-bottom: 25px">568012</td></tr></tbody></table></td></tr></tbody></table>< td></tr></tbody></table></td></tr></tbody></table><table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 100%; max-width: 600px"><tbody><tr><td height="4" style="line-height: 4px" colspan="3">&nbsp;</td></tr><tr><td width="15px" style="width: 15px"></td><td width="20" style="display: block; width: 20px"> nbsp;&nbsp;&nbsp;</td><td style="text-align: center"><div style="padding-top: 10px; display: flex"><div style="margin: auto"><img class="v1img" src="program/resources/blocked.gif" height="26" width="52"></div><br></div><div style="height: 10px"></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">© Instagram. Meta Platforms, Inc., 1601 Willow Road, Menlo Park, CA 94025<br></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">Este mensaje se envió a <a style="color: #abadae; text-decoration: underline">albertopineda202401@mivisaya.com</a>.<br></div></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td width="15px" style="width: 15px"></td>< tr><tr><td height="32" style="line-height: 32px" colspan="3">&nbsp;</td></tr></tbody></table>&nbsp;<span><img src="program/resources/blocked.gif" style="border: 0; width: 1px; height: 1px"></span></div>dame el codigo de verificacion en json. con la key \'code\' y en otra key check true o false si el codigo es de instagram.'
+    respuesta = chat_with_gpt(str(prompt))
+    print(json.loads(respuesta["data"]))
