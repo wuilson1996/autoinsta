@@ -41,12 +41,12 @@ import argparse
 _logging = logging.basicConfig(filename="logger.log", level=logging.INFO)
 
 
-def chat_with_gpt(prompt):
-    url = "http://127.0.0.1:8000/api/connetToAI/"
+def chat_with_gpt(prompt, _url):
+    url = _url + "/api/connetToAI/"
     payload = {'text': prompt}
     files=[]
     headers = {}
-    response = requests.request("POST", url, headers=headers, data=payload, files=files)
+    response = requests.request("POST", url, headers=headers, data=payload, files=files, verify=False)
     return json.loads(response.text)
 
 class ReCapchat:
@@ -94,13 +94,14 @@ class ReCapchat:
         return result
 
 class ServiceEmail:
-    def __init__(self, username, password, to) -> None:
+    def __init__(self, username, password, to, api_url) -> None:
         # Configuración del servidor
         self.smtp_server = "mail.fixco.co"#"smtp.office365.com"
         self.puerto_imap = 993
         self.smtp_port = 587
         self.username = username
         self.password = password
+        self.api_url = api_url
         # settings server received
         #self.imap_server = "mail.fixco.co"#"outlook.office365.com"
         self.to = to
@@ -155,10 +156,10 @@ class ServiceEmail:
                         try:
                             soup = BeautifulSoup(body, 'html.parser')
                             prompt = str(soup) + ". Dame el código de verificación en JSON. con la key 'code' y en otra key 'check' true o false si el código es de 'instagram'."
-                            resp = chat_with_gpt(prompt)
+                            resp = chat_with_gpt(prompt, self.api_url)
                             if resp["code"] == 200:
                                 logging.info("----------------------------------------")
-                                logging.info("Respuesta de GPT:"+ resp)
+                                logging.info("Respuesta de GPT:"+ str(resp))
                                 logging.info("----------------------------------------")
                                 resp = json.loads(resp["data"])
                                 if resp["check"]:
@@ -507,7 +508,8 @@ class WebActions:
         return status
 
 class ManageInsta:
-    def __init__(self, email, password_email, password, username, name, end_search) -> None:
+    def __init__(self, email, password_email, password, username, name, end_search, api_url) -> None:
+        self.api_url = api_url
         self.url = "https://www.instagram.com"
         self.driver = None
         self._email = email
@@ -659,7 +661,8 @@ class ManageInsta:
             service_email = ServiceEmail(
                 username=self._email,
                 password=self._password_email,
-                to=""
+                to="",
+                api_url=self.api_url
             )
             start_time = time.time()
             status = True
@@ -1045,14 +1048,15 @@ class AsyncIterator:
 DRIVER = {}
 websocket = None
 
-def create_accounts(data):
+def create_accounts(data, api_url):
     manage_insta = ManageInsta(
         email=data["email"],
         password_email=data["password_email"],
         password=data["password"],
         username=data["username"],
         name=data["username"],
-        end_search=0
+        end_search=0,
+        api_url=api_url
     )
     _driver = manage_insta._webdriver()
     status, block = manage_insta.create_account(_driver)
@@ -1063,68 +1067,15 @@ def create_accounts(data):
        manage_insta.close(_driver)
     return status, block
 
-# def sign_in_account(data):
-#     manage_insta = ManageInsta(
-#         email=data["email"],
-#         password_email=data["password_email"],
-#         password=data["password"],
-#         username=data["username"],
-#         name=data["username"],
-#         end_search=0
-#     )
-#     _driver = manage_insta._webdriver()
-#     #manage_insta.create_account(_driver)
-#     state, block = manage_insta.sign_in(_driver)
-#     logging.info(state, block)
-#     time.sleep(5)
-#     if not block:
-#         manage_insta.logout(_driver)
-#         # if state:
-#         #     data = manage_insta.get_users("crece.en.redes.sociales")
-#         #     for d in data:
-#         #manage_insta.send_dm("thehollywoodhustle", "Yo bro, this is the an automatic message from the demo of the instahack software we are working on. we are Anonymous. We are Legion. We do not forgive. We do not forget. Expect us.")
-#         time.sleep(10)
-
-#     manage_insta.close(_driver)
-
-# def send_dm_account(data):
-#     manage_insta = ManageInsta(
-#         email=data["email"],
-#         password_email=data["password_email"],
-#         password=data["password"],
-#         username=data["username"],
-#         name=data["username"],
-#         end_search=0
-#     )
-#     _driver = manage_insta._webdriver()
-#     #manage_insta.create_account(_driver)
-#     state, block = manage_insta.sign_in(_driver)
-#     #print(state, block)
-#     #time.sleep(1)
-#     #manage_insta.logout(_driver)
-#     logging.info(state)
-#     if state:
-#         # data = manage_insta.get_users("crece.en.redes.sociales")
-#         # for d in data:
-#         manage_insta.send_dm(
-#             "wuilsoft", 
-#             "Yo bro, this is the an automatic message from the demo of the instahack software we are working on. we are Anonymous. We are Legion. We do not forgive. We do not forget. Expect us.",
-#             _driver    
-#         )
-#         manage_insta.logout(_driver)
-#     time.sleep(10)
-
-#     manage_insta.close(_driver)
-
-
-def sign_in_with_browse(data):
+def sign_in_with_browse(data, api_url):
     manage_insta = ManageInsta(
         email=data["email"],
         password_email=data["password_email"],
         password=data["password"],
         username=data["username"],
         name=data["username"],
-        end_search=0
+        end_search=0,
+        api_url=api_url
     )
     _driver = manage_insta._webdriver()
     status, block = manage_insta.sign_in(_driver)
@@ -1156,15 +1107,15 @@ def send_dm_with_browse(data):
     return status, block
 
 @sync_to_async
-def task_in_async(data) -> bool:
+def task_in_async(data, api_url=None) -> bool:
     if data["object"] == "CreateAccount":
-        status, block = create_accounts(data)
+        status, block = create_accounts(data, api_url)
     # elif data["object"] == "SignInAccount":
     #     status, block = sign_in_account(data)
     # elif data["object"] == "SendDmAccount":
     #     status, block = send_dm_account(data)
     elif data["object"] == "SignIn":
-        status, block = sign_in_with_browse(data)
+        status, block = sign_in_with_browse(data, api_url)
     elif data["object"] == "LogOut":
         status, block = logout_with_browse(data)
     elif data["object"] == "SendDm":
@@ -1179,8 +1130,8 @@ async def task_follow_current(data):
     aux_data["machine"] = "BotMaster"
     await websocket.send(json.dumps(aux_data))
 
-async def task_account_current(data):
-    status, block = await task_in_async(data)
+async def task_account_current(data, api_url):
+    status, block = await task_in_async(data, api_url)
     aux_data = data
     aux_data["status"] = status
     aux_data["block"] = block
@@ -1205,12 +1156,9 @@ async def received(machine, _url):
                         logging.info(f"{data['email']} {data['object']}")
                         print(f"{data['email']} {data['object']}")
                         if data["object"] == "SendDm":
-                            #follows = data["follow"]
-                            #for f in follows:
-                            #data["follow"] = f
                             asyncio.create_task(task_follow_current(data))
                         else:
-                            asyncio.create_task(task_account_current(data))
+                            asyncio.create_task(task_account_current(data, "https://"+_url))
                             
                     except Exception as e:
                         logging.info(f"Error al recibir o procesar datos: " + str(e))
@@ -1231,14 +1179,14 @@ if __name__ == "__main__":
     # code = service_email.received(_email.split("@")[1])
     # print(code)
     
-    #parser = argparse.ArgumentParser(description='Autobot Instagram')
-    #parser.add_argument('machine', type=str, help='Name machine')
-    #parser.add_argument('url', type=str, help='url botMaster')
+    parser = argparse.ArgumentParser(description='Autobot Instagram')
+    parser.add_argument('machine', type=str, help='Name machine')
+    parser.add_argument('url', type=str, help='url botMaster')
     #Parsear los argumentos
-    #args = parser.parse_args()
-    #asyncio.run(received(args.machine, args.url))
+    args = parser.parse_args()
+    asyncio.run(received(args.machine, args.url))
 
     # Ejemplo de uso
-    prompt = '<div class="rcmBody" id="message-htmlpart1" style="margin: 0; padding: 0; background-color: #ffffff" dir="ltr"><table border="0" cellspacing="0" cellpadding="0" align="center" id="v1email_table" style="border-collapse: collapse"><tbody><tr><td id="v1email_content" style="font-family: Helvetica Neue,Helvetica,Lucida Grande,tahoma,verdana,arial,sans-serif background: #ffffff"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td height="20" style="line-height: 20px" colspan="3"> nbsp;</td></tr><tr><td height="1" colspan="3" style="line-height: 1px"></td></tr><tr><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse text-align: center; width: 100%"><tbody><tr><td width="15px" style="width: 15px"></td><td style="line-height: 0px; max-width: 600px; padding: 0 0 15px 0"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td style="width: 100%; text-align: left; height: 33px"><img height="33" src="program/resources/blocked.gif" style="border: 0"></td></tr></tbody></table></td><td width="15px" style="width: 15px"></td></tr></tbody></table></td></tr><tr><td><table border="0" width="430" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto"><tbody><tr><td><table border="0" width="430px" cellspacing="0" cellpadding="0" style="border-collapse: collapse margin: 0 auto 0 auto; width: 430px"><tbody><tr><td width="15" style="display: block; width: 15px">&nbsp;&nbsp;&nbsp;</td></tr><tr><td width="12" style="display: block; width: 12px"> nbsp;&nbsp;&nbsp;</td><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td></td><td style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px"><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Hola:</p><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Alguien intentó registrarse en una cuenta de Instagram con albertopineda202401@mivisaya.com. Si fuiste tú, ingresa este código de registro en la app:</p></td></tr></tbody></table></td></tr><tr><td>< td><td style="padding: 10px; color: #565a5c; font-size: 32px; font-weight: 500; text-align: center; padding-bottom: 25px">568012</td></tr></tbody></table></td></tr></tbody></table>< td></tr></tbody></table></td></tr></tbody></table><table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 100%; max-width: 600px"><tbody><tr><td height="4" style="line-height: 4px" colspan="3">&nbsp;</td></tr><tr><td width="15px" style="width: 15px"></td><td width="20" style="display: block; width: 20px"> nbsp;&nbsp;&nbsp;</td><td style="text-align: center"><div style="padding-top: 10px; display: flex"><div style="margin: auto"><img class="v1img" src="program/resources/blocked.gif" height="26" width="52"></div><br></div><div style="height: 10px"></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">© Instagram. Meta Platforms, Inc., 1601 Willow Road, Menlo Park, CA 94025<br></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">Este mensaje se envió a <a style="color: #abadae; text-decoration: underline">albertopineda202401@mivisaya.com</a>.<br></div></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td width="15px" style="width: 15px"></td>< tr><tr><td height="32" style="line-height: 32px" colspan="3">&nbsp;</td></tr></tbody></table>&nbsp;<span><img src="program/resources/blocked.gif" style="border: 0; width: 1px; height: 1px"></span></div>dame el codigo de verificacion en json. con la key \'code\' y en otra key check true o false si el codigo es de instagram.'
-    respuesta = chat_with_gpt(str(prompt))
-    print(json.loads(respuesta["data"]))
+    # prompt = '<div class="rcmBody" id="message-htmlpart1" style="margin: 0; padding: 0; background-color: #ffffff" dir="ltr"><table border="0" cellspacing="0" cellpadding="0" align="center" id="v1email_table" style="border-collapse: collapse"><tbody><tr><td id="v1email_content" style="font-family: Helvetica Neue,Helvetica,Lucida Grande,tahoma,verdana,arial,sans-serif background: #ffffff"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td height="20" style="line-height: 20px" colspan="3"> nbsp;</td></tr><tr><td height="1" colspan="3" style="line-height: 1px"></td></tr><tr><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse text-align: center; width: 100%"><tbody><tr><td width="15px" style="width: 15px"></td><td style="line-height: 0px; max-width: 600px; padding: 0 0 15px 0"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td style="width: 100%; text-align: left; height: 33px"><img height="33" src="program/resources/blocked.gif" style="border: 0"></td></tr></tbody></table></td><td width="15px" style="width: 15px"></td></tr></tbody></table></td></tr><tr><td><table border="0" width="430" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto"><tbody><tr><td><table border="0" width="430px" cellspacing="0" cellpadding="0" style="border-collapse: collapse margin: 0 auto 0 auto; width: 430px"><tbody><tr><td width="15" style="display: block; width: 15px">&nbsp;&nbsp;&nbsp;</td></tr><tr><td width="12" style="display: block; width: 12px"> nbsp;&nbsp;&nbsp;</td><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td></td><td style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px"><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Hola:</p><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Alguien intentó registrarse en una cuenta de Instagram con albertopineda202401@mivisaya.com. Si fuiste tú, ingresa este código de registro en la app:</p></td></tr></tbody></table></td></tr><tr><td>< td><td style="padding: 10px; color: #565a5c; font-size: 32px; font-weight: 500; text-align: center; padding-bottom: 25px">568012</td></tr></tbody></table></td></tr></tbody></table>< td></tr></tbody></table></td></tr></tbody></table><table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 100%; max-width: 600px"><tbody><tr><td height="4" style="line-height: 4px" colspan="3">&nbsp;</td></tr><tr><td width="15px" style="width: 15px"></td><td width="20" style="display: block; width: 20px"> nbsp;&nbsp;&nbsp;</td><td style="text-align: center"><div style="padding-top: 10px; display: flex"><div style="margin: auto"><img class="v1img" src="program/resources/blocked.gif" height="26" width="52"></div><br></div><div style="height: 10px"></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">© Instagram. Meta Platforms, Inc., 1601 Willow Road, Menlo Park, CA 94025<br></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">Este mensaje se envió a <a style="color: #abadae; text-decoration: underline">albertopineda202401@mivisaya.com</a>.<br></div></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td width="15px" style="width: 15px"></td>< tr><tr><td height="32" style="line-height: 32px" colspan="3">&nbsp;</td></tr></tbody></table>&nbsp;<span><img src="program/resources/blocked.gif" style="border: 0; width: 1px; height: 1px"></span></div>dame el codigo de verificacion en json. con la key \'code\' y en otra key check true o false si el codigo es de instagram.'
+    # respuesta = chat_with_gpt(str(prompt), "https://dada-186-80-28-163.ngrok-free.app")
+    # print(json.loads(respuesta["data"]))
