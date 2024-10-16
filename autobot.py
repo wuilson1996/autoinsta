@@ -37,6 +37,7 @@ import re
 import time
 from time import sleep
 import argparse
+import ssl
 
 _logging = logging.basicConfig(filename="logger.log", level=logging.INFO)
 
@@ -1143,7 +1144,7 @@ async def received(machine, _url):
     url = f"wss://{_url}/ws/sync/fda7166a4c4766a77327769624b9416035762dd3/{machine}"
     while True:
         try:
-            async with websockets.connect(url) as ws:
+            async with websockets.connect(url, ssl=ssl._create_unverified_context()) as ws:
                 websocket = ws
                 logging.info(f"[+] Connection to Server success! MachineName: {machine}")
                 print(f"[+] Connection to Server success! MachineName: {machine}")
