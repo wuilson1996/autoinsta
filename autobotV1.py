@@ -15,32 +15,24 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.keys import Keys
 import requests
 import json
 import threading
 import os
-from PIL import Image
 import random
 from colorama import init, Fore, Back, Style
 import logging
 import platform
 
 # email
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import imaplib
-import email
-from email.header import decode_header
 from bs4 import BeautifulSoup
-import re
 import time
 from time import sleep
 import argparse
 import ssl
 
 _logging = logging.basicConfig(filename="logger.log", level=logging.INFO)
-
 
 def chat_with_gpt(prompt, _url):
     url = _url + "/api/connetToAI/"
@@ -49,6 +41,11 @@ def chat_with_gpt(prompt, _url):
     headers = {}
     response = requests.request("POST", url, headers=headers, data=payload, files=files, verify=False)
     return json.loads(response.text)
+
+def api_check_code(email, _url):
+    url = _url + f"/api/check/code/?email={email}"
+    response = requests.request("GET", url, verify=False)
+    return json.loads(response.text)["code_email"]
 
 class ReCapchat:
     def __init__(self, driver=None, language="en-US") -> None:
@@ -94,231 +91,44 @@ class ReCapchat:
             result = True
         return result
 
-class ServiceEmail:
-    def __init__(self, username, password, to, api_url) -> None:
-        # Configuración del servidor
-        self.smtp_server = "mail.fixco.co"#"smtp.office365.com"
-        self.puerto_imap = 993
-        self.smtp_port = 587
-        self.username = username
-        self.password = password
-        self.api_url = api_url
-        # settings server received
-        #self.imap_server = "mail.fixco.co"#"outlook.office365.com"
-        self.to = to
-
-    def received(self, _server):
-        self.smtp_server = "mail." + _server
-        # Conectar al servidor
-        mail = imaplib.IMAP4_SSL(self.smtp_server, self.puerto_imap)
-        mail.login(self.username, self.password)
-
-        # Seleccionar la bandeja de entrada
-        mail.select("inbox")
-
-        confirmation_code = None
-
-        try:
-            # Buscar correos no leídos
-            status, messages = mail.search(None, 'UNSEEN')
-            email_ids = list(messages[0].split())
-            #print("Email IDs encontrados:", email_ids)
-            status_received = False
-            email_ids.reverse()
-            for e_id in email_ids:
-                status, msg_data = mail.fetch(e_id, "(RFC822)")
-                for response_part in msg_data:
-                    if isinstance(response_part, tuple):
-                        msg = email.message_from_bytes(response_part[1])
-                        subject, encoding = decode_header(msg["Subject"])[0]
-                        if isinstance(subject, bytes):
-                            subject = subject.decode(encoding if encoding else "utf-8")
-                        from_ = msg.get("From")
-                        logging.info("Subject:"+ subject)
-                        logging.info("From:"+ from_)
-
-                        # Obtener el cuerpo del correo
-                        body = ""
-                        if msg.is_multipart():
-                            for part in msg.walk():
-                                content_type = part.get_content_type()
-                                content_disposition = str(part.get("Content-Disposition"))
-                                if content_type == "text/plain" and "attachment" not in content_disposition:
-                                    body = part.get_payload(decode=True).decode()
-                                    break  # Salir una vez que encuentres el texto plano
-                                elif content_type == "text/html":
-                                    body = part.get_payload(decode=True).decode()
-                        else:
-                            body = msg.get_payload(decode=True).decode()
-
-                        #print("Cuerpo del correo:", body)
-
-                        # Procesar el cuerpo con BeautifulSoup
-                        try:
-                            soup = BeautifulSoup(body, 'html.parser')
-                            prompt = str(soup) + ". Dame el código de verificación en JSON. con la key 'code' y en otra key 'check' true o false si el código es de 'instagram'."
-                            resp = chat_with_gpt(prompt, self.api_url)
-                            if resp["code"] == 200:
-                                logging.info("----------------------------------------")
-                                logging.info("Respuesta de GPT:"+ str(resp))
-                                logging.info("----------------------------------------")
-                                resp = json.loads(resp["data"])
-                                if resp["check"]:
-                                    confirmation_code = resp["code"]
-                                    logging.info(f"Código de confirmación: {confirmation_code}")
-                                    status_received = True
-                                    break
-                            else:
-                                logging.info(f"Error in consult code with api: {resp}")
-                        except Exception as e:
-                            logging.info("Error procesando el cuerpo: " + str(e))
-
-        except Exception as e:
-            logging.info("Error general al recibir correos: " + str(e))
-        finally:
-            mail.logout()
-
-        return confirmation_code
-
-    def received_v1(self, _server):
-        self.smtp_server = "mail."+_server
-        # Conectar al servidor
-        mail = imaplib.IMAP4_SSL(self.smtp_server, self.puerto_imap)
-        mail.login(self.username, self.password)
-
-        # Seleccionar la bandeja de entrada
-        mail.select("inbox")
-
-        # Ejecutar el bucle de verificación por 1 minuto
-        confirmation_code = None
-        #start_time = time.time()
-        #while time.time() - start_time < 60:
-        try:
-            # Buscar correos no leídos
-            status, messages = mail.search(None, 'UNSEEN')
-            email_ids = list(messages[0].split())
-            #print("Check message: "+str(time.time() - start_time))
-            status_received = False
-            email_ids.reverse()
-            for e_id in email_ids:
-                status, msg_data = mail.fetch(e_id, "(RFC822)")
-                for response_part in msg_data:
-                    if isinstance(response_part, tuple):
-                        msg = email.message_from_bytes(response_part[1])
-                        subject, encoding = decode_header(msg["Subject"])[0]
-                        if isinstance(subject, bytes):
-                            subject = subject.decode(encoding if encoding else "utf-8")
-                        from_ = msg.get("From")
-                        print("Subject:", subject)
-                        print("From:", from_)
-
-                        # Obtener el cuerpo del correo
-                        if msg.is_multipart():
-                            for part in msg.walk():
-                                content_type = part.get_content_type()
-                                content_disposition = str(part.get("Content-Disposition"))
-                                try:
-                                    body = part.get_payload(decode=True).decode()
-                                except:
-                                    pass
-                                if content_type == "text/plain" and "attachment" not in content_disposition:
-                                    print("Body:", body)
-                                #    pass
-                        else:
-                            body = msg.get_payload(decode=True).decode()
-                            print("Body:", body)
-
-                        try:
-                            soup = BeautifulSoup(body, 'html.parser')
-                            prompt = soup+".dame el codigo de verificacion de 6 digitos en json. con la key 'code' y en otra key 'check' true o false si el codigo es de 'instagram'."
-                            resp = chat_with_gpt(prompt)
-                            print(resp)
-                            if resp["check"]:
-                                confirmation_code = resp["code"]
-                                try:
-                                    # Extraer el código de confirmación (asumiendo que el formato es consistente)
-                                    print(f"Código de confirmación: {confirmation_code}")
-                                    status_received = True
-                                    break
-                                except Exception as e:
-                                    logging.info("Error message email: "+str(e))
-                        except Exception as e2:
-                            logging.info("Error exception body: "+str(e2))
-                
-        except Exception as e3:
-            logging.info("Error general while: "+str(e3))
-        mail.logout()
-
-        return confirmation_code
-    
-    # Verificar que el correo proviene de Instagram y contiene el texto esperado
-    def is_instagram(self, soup):
-        # Verificar que el título contiene "Facebook" o "Instagram"
-        title = soup.title.string if soup.title else ""
-        if "Instagram" not in title and "Facebook" not in title:
-            return False
-
-        # Verificar que el cuerpo contiene el texto esperado
-        expected_text = "Someone tried to sign up for an Instagram account"
-        body_text = soup.get_text()
-        if expected_text not in body_text:
-            return False
-
-        return True
-
-    def send(self, text):
-        # Crear el mensaje
-        msg = MIMEMultipart()
-        msg['From'] = self.username
-        msg['To'] = self.to
-        msg['Subject'] = "Instagram"
-
-        # Cuerpo del correo en HTML
-        body = text  # `text` debería contener el HTML que deseas enviar
-        msg.attach(MIMEText(body, 'html'))  # Cambia 'plain' a 'html'
-
-        # Enviar el correo
-        try:
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
-            server.starttls()
-            server.login(self.username, self.password)
-            text = msg.as_string()
-            server.sendmail(self.username, msg['To'], text)
-            print("Correo enviado exitosamente")
-        except Exception as e:
-            print(f"Error: {e}")
-        finally:
-            server.quit()
-
 class WebActions:
     def __init__(self, driver):
         self.driver = driver
 
-    def save_session(self, _driver):
+    def save_session(self):
         status = False
         logging.info(f"Check button save session")
-        if "¿Guardar tu información de inicio de sesión?" in str(_driver.page_source) or "Save your login info?" in str(_driver.page_source):
+        if "¿Guardar tu información de inicio de sesión?" in str(self.driver.page_source) or "Save your login info?" in str(self.driver.page_source):
             status = True
-            for b in _driver.find_elements_by_xpath("//div[@role='button']"):
+            for b in self.driver.find_elements_by_xpath("//div[@role='button']"):
                 if "Ahora no" == str(b.text).strip() or "Not now" == str(b.text).strip():
                     b.click()
         return status
 
-    def notification(self, _driver):
+    def notification(self):
         logging.info(f"Check button notifications")
-        if "Activar notificaciones" in str(_driver.page_source) or "Turn on Notifications" in str(_driver.page_source):
-            for b in _driver.find_elements_by_tag_name("button"):
+        if "Activar notificaciones" in str(self.driver.page_source) or "Turn on Notifications" in str(self.driver.page_source):
+            for b in self.driver.find_elements_by_tag_name("button"):
                 #print(b.text)
                 if "Ahora no" == str(b.text).strip() or "Not Now" in str(b.text).strip() or "Not now" in str(b.text).strip():
                     b.click()
                     break
-
+    def action_alert(self):
+        try:
+            self.save_session()
+        except Exception as ess:
+            print("Error save session: "+str(ess))
+        try:
+            self.notification()
+        except Exception as ess:
+            print("Error save session: "+str(ess))
     def perform_button_click_and_input(self, max_timeout=120):
         print("Check buton Send message")
         start_time = time.time()  # Captura el tiempo de inicio
         status = False
         while True:
             try:
+                self.action_alert()
                 # Busca todos los botones con el rol "button"
                 buttons = self.driver.find_elements_by_xpath("//div[@role='button']")
                 for button in buttons:
@@ -352,6 +162,7 @@ class WebActions:
         status = False
         while True:
             try:
+                self.action_alert()
                 # Busca el campo de entrada por su nombre
                 input_field = self.driver.find_elements_by_xpath("//input[@name='queryBox']")
                 if input_field:
@@ -385,8 +196,7 @@ class WebActions:
         status = False
         while True:
             try:
-                self.save_session(self.driver)
-                self.notification(self.driver)
+                self.action_alert()
                 if "No account found." in str(self.driver.page_source):
                     print("Check click item. No account found.")
                     break
@@ -431,6 +241,7 @@ class WebActions:
         status = False
         while True:
             try:
+                self.action_alert()
                 # Busca todos los botones con el rol "button"
                 buttons = self.driver.find_elements_by_xpath('//div[@role="button"]')
                 for button in buttons:
@@ -456,10 +267,12 @@ class WebActions:
         print("Finish Check click button Chat")
         return status
 
+    # not used deprecated.
     def perform_click_and_focus_on_editable_div(self, max_timeout=120):
         start_time = time.time()  # Captura el tiempo de inicio
         while True:
             try:
+                self.action_alert()
                 # Busca el div editable
                 editable_div = self.driver.find_elements_by_xpath('//div[@contenteditable="true"][@role="textbox"]')
                 if editable_div:
@@ -507,6 +320,8 @@ class WebActions:
             logging.info("Error in button Enviar mensaje")
         print("Finish Check Send dm")
         return status
+
+
 
 class ManageInsta:
     def __init__(self, email, password_email, password, username, name, end_search, api_url) -> None:
@@ -586,7 +401,7 @@ class ManageInsta:
         #path_extention4 = os.path.abspath("autobot.py").replace("autobot.py", "vpn")
         options.add_argument(f"--load-extension={path_extention}")
         proxy_address = "148.251.5.30:"+str(random.randint(10000, 20000))
-        options.add_argument(f'--proxy-server=http://{proxy_address}')  # Establece el proxy
+        #options.add_argument(f'--proxy-server=http://{proxy_address}')  # Establece el proxy
         if platform.system() == "Windows":
             path_driver = os.path.abspath("chromedriver.exe")
         else:
@@ -662,6 +477,87 @@ class ManageInsta:
             status = True
             block = False
             logging.info("Check code confirmation")
+            start_time = time.time()
+            time_out_end = 241
+            time_out_resend = 100
+            while time.time() - start_time < time_out_end:
+                try:
+                    confirmation_code = api_check_code(self._email, self.api_url)
+                    #logging.info(confirmation_code)
+                except Exception as e:
+                    logging.info(e)
+                    confirmation_code = None
+                if confirmation_code != None:
+                    logging.info(confirmation_code)
+                    print(f"Code confirmation: {confirmation_code}")
+                    element_input = _driver.find_element_by_xpath("//input[@name='email_confirmation_code']")
+                    element_input.send_keys(Keys.CONTROL + "a")  # Selecciona todo el texto
+                    element_input.send_keys(Keys.DELETE)  # Elimina el texto seleccionado
+                    time.sleep(2)
+                    element_input.send_keys(confirmation_code)
+                    try:
+                        for b in _driver.find_elements_by_xpath("//div[@role='button']"):
+                            if "Siguiente" == str(b.text).strip() or "Next" == str(b.text).strip():
+                                b.click()
+                                break
+                    except Exception as ebtn:
+                        logging.info("Error buttonclick: "+str(ebtn))
+                    try:
+                        end_check = False
+                        print("Check response")
+                        check_account = False
+                        status = False
+                        while True:
+                            print("Check response in while")
+                            if "That code isn't valid. You can request a new one." in str(_driver.page_source) or "El código no es válido. Puedes solicitar uno nuevo." in str(_driver.page_source):
+                                print("El código no es válido. Puedes solicitar uno nuevo.")
+                                self.resend_and_check(_driver)
+                                break
+                            elif "The IP address you are using has been flagged as an open proxy. If you believe this to be incorrect, please visit" in str(_driver.page_source):
+                                print("[-] Error this ip is proxy. Resend code and check")
+                                #self.resend_and_check(_driver)
+                                check_account = True
+                                break
+                            elif "Sorry, something went wrong creating your account. Please try again soon." in str(_driver.page_source):
+                                print("[-] Sorry, something went wrong creating your account. Please try again soon. Resend code and check")
+                                #self.resend_and_check(_driver)
+                                check_account = True
+                                break
+                            elif self.check_suspend(_driver) or "suspended" in str(_driver.current_url):
+                                print("[-] Sorry, account problem block")
+                                check_account = True
+                                end_check = True
+                                block = True
+                                break
+                            else:
+                                soup = BeautifulSoup(_driver.page_source, "html.parser")
+                                # Busca todos los enlaces con el atributo role="link"
+                                buttons = soup.find_all("a", {"role": "link"})
+                                for button in buttons:
+                                    # Verifica si el href del botón contiene la frase deseada
+                                    href = button.get("href")
+                                    if href and "/direct/inbox/" in href:
+                                        print("Button direct inbox")
+                                        end_check = True
+                                        break
+                                if end_check:
+                                    break
+                            time.sleep(1)
+
+                        if end_check:
+                            print("[+] Check code success...")
+                            status = True
+                            break
+                        elif check_account:
+                            break
+                    except Exception as ebtn2:
+                        logging.info("Error Check code confirmation: "+str(ebtn2))
+                else:
+                    if time.time() - start_time > time_out_resend:
+                        self.resend_and_check(_driver)
+                        time_out_resend += time_out_resend
+                    status = False
+                    check_account = False
 
             #time.sleep(10)
             #self.notification(_driver)
@@ -674,6 +570,12 @@ class ManageInsta:
         print(status, block)
         return status, block
     
+    def resend_and_check(self, _driver):
+        self.resend_code(_driver)
+        time.sleep(5)
+        re_captcha = ReCapchat(_driver)
+        re_captcha.run()
+
     def resend_code(self, _driver):
         logging.info("[+] Resend code...")
         for b in _driver.find_elements_by_xpath("//div[@role='button']"):
@@ -994,7 +896,6 @@ class AsyncIterator:
             raise StopAsyncIteration
 
 DRIVER = {}
-websocket = None
 
 def create_accounts(data, api_url):
     manage_insta = ManageInsta(
@@ -1054,14 +955,9 @@ def send_dm_with_browse(data):
     logging.info("[+] Send DM success...")
     return status, block
 
-@sync_to_async
 def task_in_async(data, api_url=None) -> bool:
     if data["object"] == "CreateAccount":
         status, block = create_accounts(data, api_url)
-    # elif data["object"] == "SignInAccount":
-    #     status, block = sign_in_account(data)
-    # elif data["object"] == "SendDmAccount":
-    #     status, block = send_dm_account(data)
     elif data["object"] == "SignIn":
         status, block = sign_in_with_browse(data, api_url)
     elif data["object"] == "LogOut":
@@ -1070,21 +966,17 @@ def task_in_async(data, api_url=None) -> bool:
         status, block = send_dm_with_browse(data)
     return status, block
 
-async def task_follow_current(data):
-    status, block = await task_in_async(data)
-    aux_data = data
-    aux_data["status"] = status
-    aux_data["block"] = block
-    aux_data["machine"] = "BotMaster"
-    await websocket.send(json.dumps(aux_data))
-
-async def task_account_current(data, api_url):
-    status, block = await task_in_async(data, api_url)
-    aux_data = data
-    aux_data["status"] = status
-    aux_data["block"] = block
-    aux_data["machine"] = "BotMaster"
-    await websocket.send(json.dumps(aux_data))
+@sync_to_async
+def task_account_current(data, api_url):
+    try:
+        status, block = task_in_async(data, api_url)
+        aux_data = data
+        aux_data["status"] = status
+        aux_data["block"] = block
+        aux_data["machine"] = "BotMaster"
+        return aux_data
+    except Exception as e:
+        print("Error: "+str(e))
 
 async def create_task_with_browser(_email):
     manage_insta = ManageInsta(
@@ -1103,12 +995,10 @@ async def create_task_with_browser(_email):
 async def received(machine, _url, _email):
     if _email:
         asyncio.create_task(create_task_with_browser(_email))
-    global websocket
     url = f"wss://{_url}/ws/sync/fda7166a4c4766a77327769624b9416035762dd3/{machine}"
     while True:
         try:
-            async with websockets.connect(url, ssl=ssl._create_unverified_context()) as ws:
-                websocket = ws
+            async with websockets.connect(url, ssl=ssl._create_unverified_context()) as websocket:
                 logging.info(f"[+] Connection to Server success! MachineName: {machine}")
                 print(f"[+] Connection to Server success! MachineName: {machine}")
                 while True:
@@ -1119,10 +1009,9 @@ async def received(machine, _url, _email):
                         data = json.loads(r)
                         logging.info(f"{data['email']} {data['object']}")
                         print(f"{data['email']} {data['object']}")
-                        if data["object"] == "SendDm":
-                            asyncio.create_task(task_follow_current(data))
-                        else:
-                            asyncio.create_task(task_account_current(data, "https://"+_url))
+
+                        aux_data = await task_account_current(data, "https://"+_url)
+                        await websocket.send(json.dumps(aux_data))
                             
                     except Exception as e:
                         logging.info(f"Error al recibir o procesar datos: " + str(e))
@@ -1131,27 +1020,27 @@ async def received(machine, _url, _email):
             logging.info(f"[-] Error to connect: "+str(errorConnect))
             logging.info(f"[+] Reconected websocket in 5 seconds...")
             await asyncio.sleep(5)
+        except KeyboardInterrupt:
+            logging.info(f"[+] Interrumpido por el usuario, saliendo...")
+            break
     
     logging.info(f"[+] Disconnection to Server success! MachineName: {machine}")
 
-if __name__ == "__main__":
-    # _email = "albertopineda202401@mivisaya.com"
-    # _clave = "colombia123*"
-    # service_email = ServiceEmail(_email, _clave, _email)
-    # service_email.send('<div class="rcmBody" id="message-htmlpart1" style="margin: 0; padding: 0; background-color: #ffffff" dir="ltr"><table border="0" cellspacing="0" cellpadding="0" align="center" id="v1email_table" style="border-collapse: collapse"><tbody><tr><td id="v1email_content" style="font-family: Helvetica Neue,Helvetica,Lucida Grande,tahoma,verdana,arial,sans-serif; background: #ffffff"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td height="20" style="line-height: 20px" colspan="3">&nbsp;</td></tr><tr><td height="1" colspan="3" style="line-height: 1px"></td></tr><tr><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; text-align: center; width: 100%"><tbody><tr><td width="15px" style="width: 15px"></td><td style="line-height: 0px; max-width: 600px; padding: 0 0 15px 0"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td style="width: 100%; text-align: left; height: 33px"><img height="33" src="program/resources/blocked.gif" style="border: 0"></td></tr></tbody></table></td><td width="15px" style="width: 15px"></td></tr></tbody></table></td></tr><tr><td><table border="0" width="430" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto"><tbody><tr><td><table border="0" width="430px" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 430px"><tbody><tr><td width="15" style="display: block; width: 15px">&nbsp;&nbsp;&nbsp;</td></tr><tr><td width="12" style="display: block; width: 12px">&nbsp;&nbsp;&nbsp;</td><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td></td><td style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px"><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Hola:</p><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Alguien intentó registrarse en una cuenta de Instagram con manuel_mujica202301@servicio-tecnico-apple.shop. Si fuiste tú, ingresa este código de registro en la app:</p></td></tr></tbody></table></td></tr><tr><td></td><td style="padding: 10px; color: #565a5c; font-size: 32px; font-weight: 500; text-align: center; padding-bottom: 25px">581043</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table><table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 100%; max-width: 600px"><tbody><tr><td height="4" style="line-height: 4px" colspan="3">&nbsp;</td></tr><tr><td width="15px" style="width: 15px"></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td style="text-align: center"><div style="padding-top: 10px; display: flex"><div style="margin: auto"><img class="v1img" src="program/resources/blocked.gif" height="26" width="52"></div><br></div><div style="height: 10px"></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">© Instagram. Meta Platforms, Inc., 1601 Willow Road, Menlo Park, CA 94025<br></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">Este mensaje se envió a <a style="color: #abadae; text-decoration: underline">manuel_mujica202301@servicio-tecnico-apple.shop</a>.<br></div></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td width="15px" style="width: 15px"></td></tr><tr><td height="32" style="line-height: 32px" colspan="3">&nbsp;</td></tr></tbody></table>&nbsp;<span><img src="program/resources/blocked.gif" style="border: 0; width: 1px; height: 1px"></span></div>')
-    # time.sleep(10)
-    # code = service_email.received(_email.split("@")[1])
-    # print(code)
-    
-    parser = argparse.ArgumentParser(description='Autobot Instagram')
-    parser.add_argument('machine', type=str, help='Name machine')
-    parser.add_argument('url', type=str, help='url botMaster')
-    parser.add_argument('email', nargs='?', type=str, default=None, help='Email used (optional)')
-    #Parsear los argumentos
-    args = parser.parse_args()
-    asyncio.run(received(args.machine, args.url, args.email))
+def execute_system(machine, url, email):
+    asyncio.run(received(machine, url, email))
 
-    # Ejemplo de uso
-    # prompt = '<div class="rcmBody" id="message-htmlpart1" style="margin: 0; padding: 0; background-color: #ffffff" dir="ltr"><table border="0" cellspacing="0" cellpadding="0" align="center" id="v1email_table" style="border-collapse: collapse"><tbody><tr><td id="v1email_content" style="font-family: Helvetica Neue,Helvetica,Lucida Grande,tahoma,verdana,arial,sans-serif background: #ffffff"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td height="20" style="line-height: 20px" colspan="3"> nbsp;</td></tr><tr><td height="1" colspan="3" style="line-height: 1px"></td></tr><tr><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse text-align: center; width: 100%"><tbody><tr><td width="15px" style="width: 15px"></td><td style="line-height: 0px; max-width: 600px; padding: 0 0 15px 0"><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td style="width: 100%; text-align: left; height: 33px"><img height="33" src="program/resources/blocked.gif" style="border: 0"></td></tr></tbody></table></td><td width="15px" style="width: 15px"></td></tr></tbody></table></td></tr><tr><td><table border="0" width="430" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto"><tbody><tr><td><table border="0" width="430px" cellspacing="0" cellpadding="0" style="border-collapse: collapse margin: 0 auto 0 auto; width: 430px"><tbody><tr><td width="15" style="display: block; width: 15px">&nbsp;&nbsp;&nbsp;</td></tr><tr><td width="12" style="display: block; width: 12px"> nbsp;&nbsp;&nbsp;</td><td><table border="0" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse"><tbody><tr><td></td><td style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px"><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Hola:</p><p style="margin: 10px 0 10px 0; color: #565a5c; font-size: 18px">Alguien intentó registrarse en una cuenta de Instagram con albertopineda202401@mivisaya.com. Si fuiste tú, ingresa este código de registro en la app:</p></td></tr></tbody></table></td></tr><tr><td>< td><td style="padding: 10px; color: #565a5c; font-size: 32px; font-weight: 500; text-align: center; padding-bottom: 25px">568012</td></tr></tbody></table></td></tr></tbody></table>< td></tr></tbody></table></td></tr></tbody></table><table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 0 auto 0 auto; width: 100%; max-width: 600px"><tbody><tr><td height="4" style="line-height: 4px" colspan="3">&nbsp;</td></tr><tr><td width="15px" style="width: 15px"></td><td width="20" style="display: block; width: 20px"> nbsp;&nbsp;&nbsp;</td><td style="text-align: center"><div style="padding-top: 10px; display: flex"><div style="margin: auto"><img class="v1img" src="program/resources/blocked.gif" height="26" width="52"></div><br></div><div style="height: 10px"></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">© Instagram. Meta Platforms, Inc., 1601 Willow Road, Menlo Park, CA 94025<br></div><div style="color: #abadae; font-size: 11px; margin: 0 auto 5px auto">Este mensaje se envió a <a style="color: #abadae; text-decoration: underline">albertopineda202401@mivisaya.com</a>.<br></div></td><td width="20" style="display: block; width: 20px">&nbsp;&nbsp;&nbsp;</td><td width="15px" style="width: 15px"></td>< tr><tr><td height="32" style="line-height: 32px" colspan="3">&nbsp;</td></tr></tbody></table>&nbsp;<span><img src="program/resources/blocked.gif" style="border: 0; width: 1px; height: 1px"></span></div>dame el codigo de verificacion en json. con la key \'code\' y en otra key check true o false si el codigo es de instagram.'
-    # respuesta = chat_with_gpt(str(prompt), "https://dada-186-80-28-163.ngrok-free.app")
-    # print(json.loads(respuesta["data"]))
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Autobot Instagram')
+    parser.add_argument('url', type=str, help='url botMaster')
+    parser.add_argument('hilos', type=str, help='hilos de BotNet')
+    args = parser.parse_args()
+    # _hilos = []
+    # for i in range(1, int(args.hilos)+1, 1):
+    #     print(f"[+] Creando BotNet{i}")
+    #     _hilo = threading.Thread(target=execute_system, args=("BotNet"+str(i), args.url, None))
+    #     _hilo.start()
+    #     _hilos.append(_hilo)
+    #     sleep(1)
+    # for h in _hilos:
+    #     h.join()
+    asyncio.run(received("BotNet"+str(args.hilos), args.url, None))

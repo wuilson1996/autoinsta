@@ -6,10 +6,23 @@ from selenium.webdriver.common.keys import Keys
 import time
 import os
 from random_name import *
+import pyautogui
 
-class Browser:
+class BrowserGmail:
     def __init__(self):
         self.driver:webdriver.Chrome = None
+        self._email = None
+        self._name = None
+        self._last_name = None
+        self._password = None
+    
+    @property
+    def email(self):
+        return self._email
+
+    @property
+    def password(self):
+        return self._password
 
     def create_browser_with_proxy(self, proxy_ip="", port=""):
         options = webdriver.ChromeOptions()
@@ -27,11 +40,18 @@ class Browser:
         proxy.ssl_proxy = f"{proxy_ip}:{port}"
 
         # Aplicar el proxy a las opciones de Chrome
-        options.add_argument(f'--proxy-server={proxy_ip}:{port}')
+        #options.add_argument(f'--proxy-server={proxy_ip}:{port}')
 
         path_driver = os.path.abspath("chromedriver.exe")
         # Inicializar el navegador con el proxy
         self.driver = webdriver.Chrome(path_driver, options=options)
+    
+    def handle_proxy_auth(self, username, password):
+        time.sleep(5)  # Espera a que aparezca el cuadro de autenticación
+        pyautogui.write(username)
+        pyautogui.press('tab')
+        pyautogui.write(password)
+        pyautogui.press('enter')
 
     def next_button(self):
         button = self.driver.find_elements_by_xpath("//button[@type='button']")
@@ -41,6 +61,11 @@ class Browser:
                 break
 
     def create_gmail(self, name, last_name, email, password):
+        self._email = f"{email}@gmail.com"
+        self._name = name
+        self._last_name = last_name
+        self._password = password
+        print(f"Starting create: {name}, {last_name}, {email}@gmail.com, {password}")
         time.sleep(2)
         button = self.driver.find_elements_by_xpath("//button[@type='button']")
         for b in button:
@@ -108,6 +133,29 @@ class Browser:
         except Exception as e:
             result = "Error: "+str(e)
         return result
+    
+    def set_code(self, code):
+        #name="code"
+        #Skip button type=button
+        #Next button type=button
+        #I agree button type=button
+        self.driver.find_element_by_xpath("//input[@name='code']").send_keys(code)
+        time.sleep(2)
+        self.next_button()
+        time.sleep(8)
+        button = self.driver.find_elements_by_xpath("//button[@type='button']")
+        for b in button:
+            if str(b.text).strip() == "Skip":
+                b.click()
+                break
+        time.sleep(4)
+        self.next_button()
+        time.sleep(5)
+        button = self.driver.find_elements_by_xpath("//button[@type='button']")
+        for b in button:
+            if str(b.text).strip() == "I agree":
+                b.click()
+                break
 
     def main(self, _driver):
         try:
@@ -125,16 +173,18 @@ class Browser:
         self.main(_driver)
         time.sleep(120)
 
-    def init_browser(self):
+    def init_browser(self, username, password, proxy_password):
         time.sleep(5)
         self.driver.get("https://gmail.com/")
         self.driver.implicitly_wait(15)
+        if int(proxy_password) == 1:
+            self.handle_proxy_auth(username, password)
         full_name = random_names()
         self.create_gmail(full_name[1], full_name[2], full_name[0], "colombia123*")
     
     def close(self):
         self.driver.close()
-
+        self.__init__()
 
 if __name__ == "__main__":
     #testing_signin("10008", "paulinarubioz02@servicio-tecnico-apple.shop")
