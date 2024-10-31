@@ -395,11 +395,13 @@ class ManageInsta:
         options.add_argument("--disable-gpu")
         options.add_argument("no-sandbox")
         options.add_argument("--lang=en")  # Cambia el idioma a inglés
+        #options.add_argument("--incognito")
         path_extention = os.path.abspath("autobot.py").replace("autobot.py", "captchaSolver")
-        #path_extention2 = os.path.abspath("autobot.py").replace("autobot.py", "holaVpn")
+        path_extention2 = os.path.abspath("autobot.py").replace("autobot.py", "TunnelBear")
+        path_extention3 = os.path.abspath("autobot.py").replace("autobot.py", "HolaVPN")
         #path_extention3 = os.path.abspath("autobot.py").replace("autobot.py", "VeePn")
         #path_extention4 = os.path.abspath("autobot.py").replace("autobot.py", "vpn")
-        options.add_argument(f"--load-extension={path_extention}")
+        options.add_argument(f"--load-extension={path_extention},{path_extention2},{path_extention3}")
         proxy_address = "148.251.5.30:"+str(random.randint(10000, 20000))
         #options.add_argument(f'--proxy-server=http://{proxy_address}')  # Establece el proxy
         if platform.system() == "Windows":
@@ -410,6 +412,44 @@ class ManageInsta:
         #if proxy_extention:
         #    options.add_extension(proxy_extention)
         return webdriver.Chrome(path_driver, options=options)
+
+    def init_vpn_tunnelbear(self, _driver):
+        _driver.get("http://tunnelbear.com/account/login")
+        _driver.implicitly_wait(15)
+        _driver.find_element_by_xpath("//input[@name='email']").send_keys("datastudentd@gmail.com")
+        sleep(1)
+        _driver.find_element_by_xpath("//input[@name='password']").send_keys("Medellin123*")
+        sleep(1)
+        for a in _driver.find_elements_by_xpath("//button[@type='submit']"):
+            if "Log In" == str(a.text).strip():
+                a.click()
+                break
+
+    def init_vpn_hola_vpn(self, _driver):
+        _driver.get("https://hola.org/")
+        _driver.implicitly_wait(15)
+        sleep(5)
+        _driver.find_element_by_xpath("//a[@data-clickid='nav_login']").click()
+        sleep(5)
+        _driver.find_elements_by_xpath("//a[@class='auth_method___URdZr']")[1].click()
+        
+        #_form = _driver.find_element_by_xpath("//form[@class='login_form___Y8woB']")
+        sleep(5)
+        username = "wuilson121yer@gmail.com"
+        password = "Colombia123*"
+        for i in username:
+            _driver.find_element_by_xpath("//input[@type='text']").send_keys(i)
+            sleep(0.3)
+        sleep(3)
+        for i in password:
+            _driver.find_element_by_xpath("//input[@type='password']").send_keys(i)
+            sleep(0.3)
+        sleep(3)
+        for a in _driver.find_elements_by_tag_name("button"):
+            if 'Log in' == str(a.text).strip():
+                a.click()
+                break
+        
 
     def create_account(self, _driver):
         try:
@@ -521,6 +561,7 @@ class ManageInsta:
                             elif "Sorry, something went wrong creating your account. Please try again soon." in str(_driver.page_source):
                                 print("[-] Sorry, something went wrong creating your account. Please try again soon. Resend code and check")
                                 #self.resend_and_check(_driver)
+                                end_check = True
                                 check_account = True
                                 break
                             elif self.check_suspend(_driver) or "suspended" in str(_driver.current_url):
@@ -604,25 +645,35 @@ class ManageInsta:
             if "Entrar" == str(b.text).strip() or "Log in" == str(b.text).strip():
                 b.click()
                 break
-        time.sleep(10)
-        status = self.save_session(_driver)
-        if not status:
-            time.sleep(10)
-            block = self.check_session(_driver)
-            if not block:
-                time.sleep(2)
-                block = self.check_suspend(_driver)
-        else:
-            block = False
-            try:
-                time.sleep(4)
-                self.notification(_driver)
-                time.sleep(2)
-                self.config_account(_driver)
-                time.sleep(2)
-                self.config_account(_driver)
-            except Exception as e:
-                logging.info("Error 756: "+str(e))
+        while True:
+            if self.check_suspend(_driver):
+                block = True
+                status = False
+                break
+            elif self.check_session(_driver):
+                block = True
+                status = False
+                break
+            elif self.save_session(_driver):
+                block = False
+                status = True
+                break
+            else:
+                end_check = False
+                soup = BeautifulSoup(_driver.page_source, "html.parser")
+                # Busca todos los enlaces con el atributo role="link"
+                buttons = soup.find_all("a", {"role": "link"})
+                for button in buttons:
+                    # Verifica si el href del botón contiene la frase deseada
+                    href = button.get("href")
+                    if href and "/direct/inbox/" in href:
+                        print("Button direct inbox")
+                        end_check = True
+                        block = False
+                        status = True
+                        break
+                if end_check:
+                    break
         return status, block
     
     def config_account(self, _driver):
@@ -635,12 +686,15 @@ class ManageInsta:
 
     def check_session(self, _driver):
         block = False
-        for b in _driver.find_elements_by_xpath("//button[@type='submit']"):
-            if "Entrar" == str(b.text).strip() or "Log in" == str(b.text).strip():
-                if "Tu contraseña no es correcta. Vuelve a comprobarla." in _driver.page_source or "Sorry, your password was incorrect. Please double-check your password." in _driver.page_source:
-                    block = True
-                    logging.info(f"Account login problem: {self._email}")
-                break
+        try:
+            for b in _driver.find_elements_by_xpath("//button[@type='submit']"):
+                if "Entrar" == str(b.text).strip() or "Log in" == str(b.text).strip():
+                    if "Tu contraseña no es correcta. Vuelve a comprobarla." in _driver.page_source or "Sorry, your password was incorrect. Please double-check your password." in _driver.page_source:
+                        block = True
+                        logging.info(f"Account login problem: {self._email}")
+                    break
+        except Exception as e:
+            logging.info(f"Error check session: {e}")
         return block
 
     def check_suspend(self, _driver):
@@ -881,6 +935,11 @@ class ManageInsta:
         with open("file.txt", "w") as file:
             for d in data:
                 file.write(d+"\n")
+    
+    def clear_cookies(self, _driver):
+        logging.info("[+] Clear cookies success...")
+        _driver.delete_all_cookies()
+        _driver.get("https://instagram.com")
 
 class AsyncIterator:
     def __init__(self, seq):
@@ -897,79 +956,98 @@ class AsyncIterator:
 
 DRIVER = {}
 
-def create_accounts(data, api_url):
-    manage_insta = ManageInsta(
-        email=data["email"],
-        password_email=data["password_email"],
-        password=data["password"],
-        username=data["username"],
-        name=data["username"],
-        end_search=0,
-        api_url=api_url
-    )
-    _driver = manage_insta._webdriver()
-    status, block = manage_insta.create_account(_driver)
+def create_accounts(data, api_url, machine):
+    DRIVER[machine]["instance"]._email = data["email"]
+    DRIVER[machine]["instance"]._password_email = data["password_email"]
+    DRIVER[machine]["instance"]._password = data["password"]
+    DRIVER[machine]["instance"]._username = data["username"]
+    DRIVER[machine]["instance"]._name = data["username"]
+    DRIVER[machine]["instance"].api_url = api_url
+    # manage_insta = ManageInsta(
+    #     email=data["email"],
+    #     password_email=data["password_email"],
+    #     password=data["password"],
+    #     username=data["username"],
+    #     name=data["username"],
+    #     end_search=0,
+    #     api_url=api_url
+    # )
+    #_driver = manage_insta._webdriver()
+    status, block = DRIVER[machine]["instance"].create_account(DRIVER[machine]["driver"])
     if status:
-        DRIVER[data["email"]] = {"driver": _driver, "instance": manage_insta}
+        #DRIVER[machine] = {"driver": _driver, "instance": manage_insta}
         logging.info("[+] SignUp success...")
-    else:
-       manage_insta.close(_driver)
+    #else:
+    #   manage_insta.close(_driver)
+    if block:
+        DRIVER[machine]["instance"].clear_cookies(DRIVER[machine]["driver"])
     return status, block
 
-def sign_in_with_browse(data, api_url):
-    manage_insta = ManageInsta(
-        email=data["email"],
-        password_email=data["password_email"],
-        password=data["password"],
-        username=data["username"],
-        name=data["username"],
-        end_search=0,
-        api_url=api_url
-    )
-    _driver = manage_insta._webdriver()
-    status, block = manage_insta.sign_in(_driver)
-    #if status:
-    logging.info("[+] SignIn success...")
-    DRIVER[data["email"]] = {"driver": _driver, "instance": manage_insta}
+def sign_in_with_browse(data, api_url, machine):
+    # manage_insta = ManageInsta(
+    #     email=data["email"],
+    #     password_email=data["password_email"],
+    #     password=data["password"],
+    #     username=data["username"],
+    #     name=data["username"],
+    #     end_search=0,
+    #     api_url=api_url
+    # )
+    try:
+        DRIVER[machine]["instance"]._email = data["email"]
+        DRIVER[machine]["instance"]._password_email = data["password_email"]
+        DRIVER[machine]["instance"]._password = data["password"]
+        DRIVER[machine]["instance"]._username = data["username"]
+        DRIVER[machine]["instance"]._name = data["username"]
+        DRIVER[machine]["instance"].api_url = api_url
+        #_driver = manage_insta._webdriver()
+        status, block = DRIVER[machine]["instance"].sign_in(DRIVER[machine]["driver"])
+        if status:
+            logging.info("[+] SignIn success...")
+        if block:
+            DRIVER[machine]["instance"].clear_cookies(DRIVER[machine]["driver"])
+    except Exception as e:
+        logging.info(f"[+] Error signin, {e}...")
+    #DRIVER[machine] = {"driver": _driver, "instance": manage_insta}
     #else:
     #    _driver.close()
     return status, block
 
-def logout_with_browse(data):
-    status, block = DRIVER[data["email"]]["instance"].logout(DRIVER[data["email"]]["driver"])
+def logout_with_browse(machine):
+    status, block = DRIVER[machine]["instance"].logout(DRIVER[machine]["driver"])
     sleep(3)
-    DRIVER[data["email"]]["instance"].close(DRIVER[data["email"]]["driver"])
-    del DRIVER[data["email"]]
+    #DRIVER[machine]["instance"].close(DRIVER[machine]["driver"])
+    #del DRIVER[machine]
     logging.info("[+] LogOut success...")
     return status, block
 
-def send_dm_with_browse(data):
-    status, block = DRIVER[data["email"]]["instance"].send_dm_v2(
+def send_dm_with_browse(data, machine):
+    status, block = DRIVER[machine]["instance"].send_dm_v2(
         data["follow"],
         data["text"],
-        DRIVER[data["email"]]["driver"]
+        DRIVER[machine]["driver"]
     )
     if block:
-        DRIVER[data["email"]]["instance"].close(DRIVER[data["email"]]["driver"])
-        del DRIVER[data["email"]]
-    logging.info("[+] Send DM success...")
+    #    DRIVER[machine]["instance"].close(DRIVER[machine]["driver"])
+    #    del DRIVER[machine]
+        logging.info("[+] Send DM success...")
     return status, block
 
-def task_in_async(data, api_url=None) -> bool:
+def task_in_async(data, api_url=None, machine="") -> bool:
     if data["object"] == "CreateAccount":
-        status, block = create_accounts(data, api_url)
+        status, block = create_accounts(data, api_url, machine)
     elif data["object"] == "SignIn":
-        status, block = sign_in_with_browse(data, api_url)
+        status, block = sign_in_with_browse(data, api_url, machine)
     elif data["object"] == "LogOut":
-        status, block = logout_with_browse(data)
+        status, block = logout_with_browse(machine)
     elif data["object"] == "SendDm":
-        status, block = send_dm_with_browse(data)
+        status, block = send_dm_with_browse(data, machine)
     return status, block
 
 @sync_to_async
-def task_account_current(data, api_url):
+def task_account_current(data, api_url, machine):
     try:
-        status, block = task_in_async(data, api_url)
+        status, block = task_in_async(data, api_url, machine)
         aux_data = data
         aux_data["status"] = status
         aux_data["block"] = block
@@ -978,9 +1056,9 @@ def task_account_current(data, api_url):
     except Exception as e:
         print("Error: "+str(e))
 
-async def create_task_with_browser(_email):
+async def create_task_with_browser(machine):
     manage_insta = ManageInsta(
-        email=_email,
+        email="",
         password_email="",
         password="",
         username="",
@@ -989,12 +1067,13 @@ async def create_task_with_browser(_email):
         api_url=""
     )
     _driver = manage_insta._webdriver()
+    #manage_insta.init_vpn_tunnelbear(_driver)
+    manage_insta.init_vpn_hola_vpn(_driver)
+    DRIVER[machine] = {"driver": _driver, "instance": manage_insta}
     logging.info("[+] Starting instance...")
-    DRIVER[_email] = {"driver": _driver, "instance": manage_insta}
 
-async def received(machine, _url, _email):
-    if _email:
-        asyncio.create_task(create_task_with_browser(_email))
+async def received(machine, _url):
+    asyncio.create_task(create_task_with_browser(machine))
     url = f"wss://{_url}/ws/sync/fda7166a4c4766a77327769624b9416035762dd3/{machine}"
     while True:
         try:
@@ -1010,7 +1089,7 @@ async def received(machine, _url, _email):
                         logging.info(f"{data['email']} {data['object']}")
                         print(f"{data['email']} {data['object']}")
 
-                        aux_data = await task_account_current(data, "https://"+_url)
+                        aux_data = await task_account_current(data, "https://"+_url, machine)
                         await websocket.send(json.dumps(aux_data))
                             
                     except Exception as e:
@@ -1034,13 +1113,4 @@ if __name__ == "__main__":
     parser.add_argument('url', type=str, help='url botMaster')
     parser.add_argument('hilos', type=str, help='hilos de BotNet')
     args = parser.parse_args()
-    # _hilos = []
-    # for i in range(1, int(args.hilos)+1, 1):
-    #     print(f"[+] Creando BotNet{i}")
-    #     _hilo = threading.Thread(target=execute_system, args=("BotNet"+str(i), args.url, None))
-    #     _hilo.start()
-    #     _hilos.append(_hilo)
-    #     sleep(1)
-    # for h in _hilos:
-    #     h.join()
-    asyncio.run(received("BotNet"+str(args.hilos), args.url, None))
+    asyncio.run(received("BotNet"+str(args.hilos), args.url))

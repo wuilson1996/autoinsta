@@ -24,7 +24,7 @@ class BrowserYahoo:
     def password(self):
         return self._password
 
-    def create_browser_with_proxy(self, proxy_ip="", port=""):
+    def create_browser_with_proxy(self, proxy_ip="", port="", proxy_uso=0):
         options = webdriver.ChromeOptions()
         #options.add_argument("--headless")
         options.add_argument("--disable-gpu")
@@ -38,9 +38,10 @@ class BrowserYahoo:
         proxy.proxy_type = ProxyType.MANUAL
         proxy.http_proxy = f"{proxy_ip}:{port}"
         proxy.ssl_proxy = f"{proxy_ip}:{port}"
-
+        
         # Aplicar el proxy a las opciones de Chrome
-        #options.add_argument(f'--proxy-server={proxy_ip}:{port}')
+        if proxy_uso == True:
+            options.add_argument(f'--proxy-server={proxy_ip}:{port}')
 
         path_driver = os.path.abspath("chromedriver.exe")
         # Inicializar el navegador con el proxy
@@ -90,7 +91,7 @@ class BrowserYahoo:
             self.driver.find_element_by_xpath("//input[@id='usernamereg-phone']").send_keys(phone)
             time.sleep(3)
             self.driver.find_element_by_xpath("//button[@id='reg-sms-button']").click()
-            time.sleep(5)
+            #time.sleep(5)
             # if "This phone number has been used too many times" in self.driver.page_source:
             #     result = "This phone number has been used too many times"
             
@@ -109,16 +110,16 @@ class BrowserYahoo:
         time.sleep(2)
         for c in code:
             self.driver.find_element_by_xpath("//input[@id='verification-code-field']").send_keys(c)
-            time.sleep(0.5)
-        time.sleep(8)
+            time.sleep(0.1)
+        time.sleep(4)
         button = self.driver.find_element_by_xpath("//button[@id='verify-code-button']").click()
-        time.sleep(8)
+        time.sleep(4)
         button = self.driver.find_elements_by_xpath("//button[@type='submit']")
         for b in button:
             if str(b.text).strip() == "Listo":
                 b.click()
                 break
-        time.sleep(8)
+        time.sleep(4)
         self.driver.get("https://mail.yahoo.com/d/onboarding")
         self.driver.implicitly_wait(15)
         button = self.driver.find_elements_by_xpath("//button[@type='button']")
@@ -147,7 +148,7 @@ class BrowserYahoo:
         time.sleep(5)
         self.driver.get("https://login.yahoo.com/account/create?.lang=es-CO&src=homepage&activity=ybar-signin&pspid=2142990676&.done=https%3A%2F%2Fespanol.yahoo.com%2F%3Fp%3Dus&specId=yidregsimplified&done=https%3A%2F%2Fespanol.yahoo.com%2F%3Fp%3Dus")
         self.driver.implicitly_wait(15)
-        if int(proxy_password) == 1:
+        if proxy_password:
             self.handle_proxy_auth(username, password)
         full_name = random_names()
         self.create_yahoo(full_name[1], full_name[2], full_name[0], "colombia123*")

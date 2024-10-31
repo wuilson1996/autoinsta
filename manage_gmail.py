@@ -24,7 +24,7 @@ class BrowserGmail:
     def password(self):
         return self._password
 
-    def create_browser_with_proxy(self, proxy_ip="", port=""):
+    def create_browser_with_proxy(self, proxy_ip="", port="", proxy_uso=0):
         options = webdriver.ChromeOptions()
         #options.add_argument("--headless")
         options.add_argument("--disable-gpu")
@@ -40,7 +40,8 @@ class BrowserGmail:
         proxy.ssl_proxy = f"{proxy_ip}:{port}"
 
         # Aplicar el proxy a las opciones de Chrome
-        #options.add_argument(f'--proxy-server={proxy_ip}:{port}')
+        if proxy_uso:
+            options.add_argument(f'--proxy-server={proxy_ip}:{port}')
 
         path_driver = os.path.abspath("chromedriver.exe")
         # Inicializar el navegador con el proxy
@@ -93,24 +94,24 @@ class BrowserGmail:
         time.sleep(1)
         self.next_button()
         
-        time.sleep(6)
+        time.sleep(3)
         checks = self.driver.find_elements_by_xpath("//div[@jsname='wQNmvb']")
         for ch in checks:
             print(ch.text)
             if "Create your own Gmail address" == str(ch.text).strip():
                 ch.click()
-        time.sleep(3)
+        time.sleep(2)
         self.driver.find_element_by_xpath("//input[@name='Username']").send_keys(email)
-        time.sleep(3)
+        time.sleep(2)
         self.next_button()
 
-        time.sleep(3)
+        time.sleep(2)
         self.driver.find_element_by_xpath("//input[@name='Passwd']").send_keys(password)
         time.sleep(2)
         self.driver.find_element_by_xpath("//input[@name='PasswdAgain']").send_keys(password)
         time.sleep(2)
         self.next_button()
-        time.sleep(3)
+        time.sleep(1)
 
     def set_phone(self, phone):
         result = "Success" 
@@ -177,7 +178,7 @@ class BrowserGmail:
         time.sleep(5)
         self.driver.get("https://gmail.com/")
         self.driver.implicitly_wait(15)
-        if int(proxy_password) == 1:
+        if proxy_password:
             self.handle_proxy_auth(username, password)
         full_name = random_names()
         self.create_gmail(full_name[1], full_name[2], full_name[0], "colombia123*")
